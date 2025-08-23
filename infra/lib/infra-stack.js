@@ -1,3 +1,7 @@
+const lambda = require('aws-cdk-lib/aws-lambda');
+const node = require('aws-cdk-lib/aws-lambda-nodejs');
+const apigw = require('@aws-cdk/aws-apigatewayv2-alpha');
+const httpint = require('@aws-cdk/aws-apigatewayv2-integrations-alpha');
 const { Stack, RemovalPolicy, CfnOutput } = require('aws-cdk-lib');
 const s3 = require('aws-cdk-lib/aws-s3');
 const cloudfront = require('aws-cdk-lib/aws-cloudfront');
@@ -29,7 +33,26 @@ class InfraStack extends Stack {
       ],
     });
 
-    // 4) Useful outputs for you to copy
+    const getPlacesFn = new node.NodejsFunction(this, 'GetPlacesFn', {
+      entry: '../backend/functions/getPlaces.js',
+      runtime: lambda.Runtime.NODEJS_18_X,
+      bundling: { minify: true },
+    });
+
+    const api = new apigw.HttpApi(this, 'OpenLateApi', {
+      corsPreflight: {
+        allowOrigins: ['*'],
+        allowMethods: [apigw.CorsHttpMethod.GET, apigw.CorsHttpMethod.OPTIONS],
+      },
+    });
+
+    api.addRoutes({
+      path: '/places',
+      methods: [apigw.HttpMethod.GET],
+      integration: new httpint.HttpLambdaIntegration('GetPlacesInt', getPlacesFn),
+    });
+
+    new CfnOutput(this, 'ApiUrl', { value: api.apiEndpoint });
     new CfnOutput(this, 'CloudFrontURL', { value: `https://${distribution.domainName}` });
     new CfnOutput(this, 'DistributionId', { value: distribution.distributionId });
     new CfnOutput(this, 'SiteBucketName', { value: siteBucket.bucketName });
