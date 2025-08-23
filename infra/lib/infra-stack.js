@@ -1,3 +1,4 @@
+const dynamodb = require('aws-cdk-lib/aws-dynamodb');
 const lambda = require('aws-cdk-lib/aws-lambda');
 const node = require('aws-cdk-lib/aws-lambda-nodejs');
 const apigw = require('@aws-cdk/aws-apigatewayv2-alpha');
@@ -33,23 +34,39 @@ class InfraStack extends Stack {
       ],
     });
 
-    const getPlacesFn = new node.NodejsFunction(this, 'GetPlacesFn', {
-      entry: '../backend/functions/getPlaces.js',
-      runtime: lambda.Runtime.NODEJS_18_X,
-      bundling: { minify: true },
+    const placeCache = new dynamodb.Table(this, 'PlaceCache', {
+      partitionKey: { name: 'pk', type: dynamodb.AttributeType.STRING },
+      sortKey: { name: 'sk', type: dynamodb.AttributeType.STRING },
+      billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
+      timeToLiveAttribute: 'ttl',
+      removalPolicy: RemovalPolicy.DESTROY,
     });
 
-    const api = new apigw.HttpApi(this, 'OpenLateApi', {
+    const closingFn = new node.NodejsFunction(this, 'ClosingFn', {
+      entry: '../backend/functions/closing.js',
+      runtime: lambda.Runtime.NODEJS_18_X,
+      bundling: { minify: true },
+      environment: {
+        TABLE_NAME: placeCache.tableName,
+        CACHE_TTL_SECONDS: '86400',
+        USER_AGENT: 'LateNightFinder/1.0 (demo)',
+      },
+    });
+
+    placeCache.grantReadWriteData(closingFn);
+
+    const api = new apigw.HttpApi(this, 'ClosingApi', {
       corsPreflight: {
         allowOrigins: ['*'],
         allowMethods: [apigw.CorsHttpMethod.GET, apigw.CorsHttpMethod.OPTIONS],
+        allowHeaders: ['content-type'],
       },
     });
 
     api.addRoutes({
-      path: '/places',
+      path: '/closing',
       methods: [apigw.HttpMethod.GET],
-      integration: new httpint.HttpLambdaIntegration('GetPlacesInt', getPlacesFn),
+      integration: new httpint.HttpLambdaIntegration('ClosingInt', closingFn),
     });
 
     new CfnOutput(this, 'ApiUrl', { value: api.apiEndpoint });
