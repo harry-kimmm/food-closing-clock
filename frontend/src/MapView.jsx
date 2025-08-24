@@ -2,7 +2,6 @@ import { MapContainer, TileLayer, Marker, Popup, Circle, useMap, useMapEvents } 
 import { useEffect } from "react";
 import "leaflet/dist/leaflet.css";
 import L from "leaflet";
-
 import marker2x from "leaflet/dist/images/marker-icon-2x.png";
 import marker from "leaflet/dist/images/marker-icon.png";
 import shadow from "leaflet/dist/images/marker-shadow.png";
@@ -13,7 +12,7 @@ export default function MapView({ center, radiusKm, items, onMapClick }) {
         <MapContainer
             center={center}
             zoom={14}
-            style={{ height: "100vh", width: "100%" }}
+            style={{ height: "100%", width: "100%" }}
             scrollWheelZoom
             preferCanvas
         >
@@ -31,8 +30,8 @@ export default function MapView({ center, radiusKm, items, onMapClick }) {
                 <Popup>Search center<br />Radius: {radiusKm.toFixed(1)} km</Popup>
             </Marker>
 
-            {items.map((p) => (
-                <Marker key={p.osmId || p.placeId || `${p.lat},${p.lon}`} position={[p.lat, p.lon]}>
+            {items.map((p, i) => (
+                <Marker key={p.osmId || p.placeId || `${p.lat},${p.lon}-${i}`} position={[p.lat, p.lon]}>
                     <Popup>
                         <strong>{p.name || "Unnamed place"}</strong><br />
                         {p.closesAtLocal ? `Closes at ${p.closesAtLocal}` : "Hours unknown"}<br />

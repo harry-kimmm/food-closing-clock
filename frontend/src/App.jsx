@@ -1,6 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import MapView from "./MapView";
-import Scoreboard from "./Scoreboard";
+
+import {
+  AppBar, Toolbar, Typography, Box, Stack, Button, Slider,
+  List, ListItemButton, ListItemText, Chip, Divider, Alert, Link
+} from "@mui/material";
+import MyLocationIcon from "@mui/icons-material/MyLocation";
 
 const API = import.meta.env.VITE_API_URL;
 
@@ -17,11 +22,8 @@ export default function App() {
   useEffect(() => {
     if (!navigator.geolocation) return;
     navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        setCenter({ lat: pos.coords.latitude, lon: pos.coords.longitude });
-      },
-      () => { },
-      { enableHighAccuracy: true, timeout: 6000 }
+      (pos) => setCenter({ lat: pos.coords.latitude, lon: pos.coords.longitude }),
+      () => { }
     );
   }, []);
 
@@ -62,24 +64,15 @@ export default function App() {
   const centerLL = useMemo(() => [center.lat, center.lon], [center]);
 
   return (
-    <div className="app-shell">
-      <MapView
-        center={centerLL}
-        radiusKm={radiusKm}
-        items={items}
-        onMapClick={(latlng) => setCenter({ lat: latlng.lat, lon: latlng.lng })}
-      />
-      <aside className="panel scoreboard">
-        <div className="header">
-          <div>
-            <strong>Closing soon near you</strong>
-            <span className="badge">beta</span>
-          </div>
-        </div>
+    <Box sx={{ height: "100vh", display: "grid", gridTemplateRows: "auto 1fr" }}>
+      <AppBar position="static" color="transparent" elevation={0} sx={{ borderBottom: 1, borderColor: "divider" }}>
+        <Toolbar sx={{ gap: 2 }}>
+          <Typography variant="h6" sx={{ flexGrow: 1 }}>
+            Food Finder
+          </Typography>
 
-        <div className="controls">
-          <button
-            className="btn"
+          <Button
+            startIcon={<MyLocationIcon />}
             onClick={() => {
               if (!navigator.geolocation) return;
               navigator.geolocation.getCurrentPosition(
@@ -88,58 +81,94 @@ export default function App() {
             }}
           >
             Use my location
-          </button>
+          </Button>
 
-          <label style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            Radius ({radiusKm.toFixed(1)} km)
-            <input
-              className="range"
-              type="range"
-              min="0.3"
-              max="3"
-              step="0.1"
+          <Stack direction="row" spacing={2} alignItems="center" sx={{ width: 260 }}>
+            <Typography variant="body2" sx={{ whiteSpace: "nowrap" }}>
+              Radius {radiusKm.toFixed(1)} km
+            </Typography>
+            <Slider
+              size="small"
+              min={0.3}
+              max={3}
+              step={0.1}
               value={radiusKm}
-              onChange={(e) => setRadiusKm(Number(e.target.value))}
+              onChange={(_, v) => setRadiusKm(v)}
             />
-          </label>
-        </div>
+          </Stack>
+        </Toolbar>
+      </AppBar>
 
-        {loading && <div className="empty">Loading…</div>}
-        {errMsg && <div className="empty">Error: {errMsg}</div>}
-        {!loading && !errMsg && items.length === 0 && (
-          <div className="empty">
-            No places yet. Click the map to set a center, or adjust the radius.
-          </div>
-        )}
+      <Box
+        sx={{
+          display: "grid",
+          gridTemplateColumns: { xs: "1fr", md: "1fr 400px" },
+          height: "100%",
+        }}
+      >
+        <Box sx={{ position: "relative" }}>
+          <MapView
+            center={centerLL}
+            radiusKm={radiusKm}
+            items={items}
+            onMapClick={(latlng) => setCenter({ lat: latlng.lat, lon: latlng.lng })}
+          />
+        </Box>
 
-        <ul className="score-list">
-          {items.map((p) => (
-            <li
-              key={p.osmId || p.placeId || `${p.lat},${p.lon}`}
-              className="score-item"
-              onClick={() => {
-                setCenter({ lat: p.lat, lon: p.lon });
-              }}
-              title="Pan map to this place"
-            >
-              <div>
-                <div className="score-title">{p.name || "Unnamed place"}</div>
-                <div className="score-meta">
-                  {formatCloses(p)} • {formatDistance(p?.distanceKm)}
-                </div>
-              </div>
-              <div className="score-meta">
-                {isFinite(p?.minutesToClose) ? `${p.minutesToClose}m` : ""}
-              </div>
-            </li>
-          ))}
-        </ul>
+        <Box sx={{ borderLeft: { md: 1 }, borderColor: "divider", display: "flex", flexDirection: "column" }}>
+          <Box sx={{ p: 1.5, borderBottom: 1, borderColor: "divider" }}>
+            <Stack direction="row" spacing={1} alignItems="center">
+              <Typography variant="subtitle1" sx={{ flexGrow: 1 }}>Closing soon</Typography>
+            </Stack>
+          </Box>
 
-        <div className="footer">
-          Data cached from <a href="https://www.openstreetmap.org/" target="_blank">OpenStreetMap</a> — © OSM contributors
-        </div>
-      </aside>
-    </div>
+          {loading && <Box sx={{ p: 2 }}><Alert severity="info">Loading…</Alert></Box>}
+          {errMsg && <Box sx={{ p: 2 }}><Alert severity="error">{errMsg}</Alert></Box>}
+          {!loading && !errMsg && items.length === 0 && (
+            <Box sx={{ p: 2, color: "text.secondary" }}>
+              No places yet. Click the map to set a center, or adjust the radius.
+            </Box>
+          )}
+
+          <List dense sx={{ flex: 1, overflow: "auto" }}>
+            {items.map((p, i) => (
+              <ListItemButton
+                key={p.osmId || p.placeId || `${p.lat},${p.lon}-${i}`}
+                onClick={() => setCenter({ lat: p.lat, lon: p.lon })}
+              >
+                <ListItemText
+                  primary={<Typography fontWeight={600}>{p.name || "Unnamed place"}</Typography>}
+                  secondary={
+                    <span>
+                      {formatCloses(p)}
+                      {isFinite(p?.distanceKm) && (
+                        <> • {formatDistance(p.distanceKm)}</>
+                      )}
+                    </span>
+                  }
+                />
+                {isFinite(p?.minutesToClose) && (
+                  <Typography variant="body2" color="text.secondary">
+                    {p.minutesToClose}m
+                  </Typography>
+                )}
+              </ListItemButton>
+            ))}
+          </List>
+
+          <Divider />
+          <Box sx={{ p: 1.2 }}>
+            <Typography variant="caption" color="text.secondary">
+              Data cached from{" "}
+              <Link href="https://www.openstreetmap.org/" target="_blank" rel="noreferrer">
+                OpenStreetMap
+              </Link>{" "}
+              | © OSM contributors
+            </Typography>
+          </Box>
+        </Box>
+      </Box>
+    </Box>
   );
 }
 
@@ -148,7 +177,6 @@ function formatCloses(p) {
   if (isFinite(p?.minutesToClose)) return `Closes in ${p.minutesToClose}m`;
   return "Hours unknown";
 }
-
 function formatDistance(km) {
   if (!isFinite(km)) return "";
   if (km < 1) return `${Math.round(km * 1000)} m`;
