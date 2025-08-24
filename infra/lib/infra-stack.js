@@ -3,10 +3,11 @@ const lambda = require('aws-cdk-lib/aws-lambda');
 const node = require('aws-cdk-lib/aws-lambda-nodejs');
 const apigw = require('@aws-cdk/aws-apigatewayv2-alpha');
 const httpint = require('@aws-cdk/aws-apigatewayv2-integrations-alpha');
-const { Stack, RemovalPolicy, CfnOutput } = require('aws-cdk-lib');
 const s3 = require('aws-cdk-lib/aws-s3');
 const cloudfront = require('aws-cdk-lib/aws-cloudfront');
 const origins = require('aws-cdk-lib/aws-cloudfront-origins');
+const { Stack, RemovalPolicy, CfnOutput, Duration } = require('aws-cdk-lib');
+
 
 class InfraStack extends Stack {
   constructor(scope, id, props) {
@@ -46,12 +47,15 @@ class InfraStack extends Stack {
       entry: '../backend/functions/closing.js',
       runtime: lambda.Runtime.NODEJS_18_X,
       bundling: { minify: true },
+      timeout: Duration.seconds(15),
+      memorySize: 256,
       environment: {
         TABLE_NAME: placeCache.tableName,
         CACHE_TTL_SECONDS: '86400',
         USER_AGENT: 'LateNightFinder/1.0 (demo)',
       },
     });
+
 
     placeCache.grantReadWriteData(closingFn);
 
