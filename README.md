@@ -6,8 +6,11 @@ Built with React + Leaflet (frontend on S3/CloudFront) and a lightweight API Gat
 ## Run Locally
 
 `cd frontend`
+
 `npm install`
+
 `echo "VITE_API_URL=https://zne4xx0jb5.execute-api.us-west-2.amazonaws.com" > .env.local`
+
 `npm run dev`
 
 ## Live Demo
