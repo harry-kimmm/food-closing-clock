@@ -5,7 +5,6 @@ import {
   AppBar, Toolbar, Typography, Box, Stack, Button, Slider,
   List, ListItemButton, ListItemText, Divider, Alert, Link
 } from "@mui/material";
-import MyLocationIcon from "@mui/icons-material/MyLocation";
 
 const API = import.meta.env.VITE_API_URL;
 
@@ -16,6 +15,9 @@ export default function App() {
   const [loading, setLoading] = useState(false);
   const [errMsg, setErrMsg] = useState("");
 
+  const [baseTs, setBaseTs] = useState(null);
+  const [tick, setTick] = useState(0);
+
   const abortRef = useRef(null);
 
   useEffect(() => {
@@ -24,6 +26,11 @@ export default function App() {
       (pos) => setCenter({ lat: pos.coords.latitude, lon: pos.coords.longitude }),
       () => { }
     );
+  }, []);
+
+  useEffect(() => {
+    const id = setInterval(() => setTick((t) => t + 1), 30_000);
+    return () => clearInterval(id);
   }, []);
 
   useEffect(() => {
@@ -49,6 +56,7 @@ export default function App() {
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = await res.json();
         setItems(Array.isArray(data.items) ? data.items : []);
+        setBaseTs(Date.now());
       } catch (e) {
         if (e.name !== "AbortError") setErrMsg(e.message || "Network error");
       } finally {
@@ -62,6 +70,30 @@ export default function App() {
 
   const centerLL = useMemo(() => [center.lat, center.lon], [center]);
 
+  const remainingMinutes = (p) => {
+    if (!Number.isFinite(p?.minutesToClose)) return null;
+    const elapsed = baseTs ? Math.floor((Date.now() - baseTs) / 60000) : 0;
+    const rem = Math.max(0, p.minutesToClose - elapsed);
+    return rem;
+  };
+
+  const formatClosesLive = (p) => {
+    const rem = remainingMinutes(p);
+    if (rem == null) {
+      if (p?.closesAtLocal) return `Closes at ${p.closesAtLocal}`;
+      return "Hours unknown";
+    }
+    if (rem === 0) return "Closing now";
+    return `Closes in ${rem}m`;
+  };
+
+  const formatDistanceMi = (km) => {
+    if (!isFinite(km)) return "";
+    const mi = km * 0.621371;
+    if (mi < 1) return `${Math.round(mi * 5280)} ft`;
+    return `${mi.toFixed(1)} mi`;
+  };
+
   return (
     <Box sx={{ height: "100vh", display: "grid", gridTemplateRows: "auto 1fr" }}>
       <AppBar position="static" color="transparent" elevation={0} sx={{ borderBottom: 1, borderColor: "divider" }}>
@@ -70,7 +102,7 @@ export default function App() {
             Food Finder
           </Typography>
 
-          <Button startIcon={<MyLocationIcon />} onClick={() => {
+          <Button onClick={() => {
             if (!navigator.geolocation) return;
             navigator.geolocation.getCurrentPosition(
               (pos) => setCenter({ lat: pos.coords.latitude, lon: pos.coords.longitude })
@@ -96,11 +128,13 @@ export default function App() {
       </AppBar>
 
       <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", md: "1fr 400px" }, height: "100%" }}>
-        <Box sx={{ position: "relative", height: "100%" }}>
+        <Box sx={{ position: "relative" }}>
           <MapView
             center={centerLL}
             radiusMi={radiusMi}
             items={items}
+            baseTs={baseTs}
+            tick={tick}
             onMapClick={(latlng) => setCenter({ lat: latlng.lat, lon: latlng.lng })}
           />
         </Box>
@@ -121,20 +155,20 @@ export default function App() {
           <List dense sx={{ flex: 1, overflow: "auto" }}>
             {items.map((p, i) => (
               <ListItemButton
-                key={p.osmId || p.placeId || `${p.lat},${p.lon}-${i}`}
+                key={(p.osmId || `${p.lat},${p.lon}`) + "-" + tick}
                 onClick={() => setCenter({ lat: p.lat, lon: p.lon })}
               >
                 <ListItemText
                   primary={<Typography fontWeight={600}>{p.name || "Unnamed place"}</Typography>}
                   secondary={
                     <span>
-                      {formatCloses(p)} • {formatDistanceMi(p?.distanceKm)}
+                      {formatClosesLive(p)} - {formatDistanceMi(p?.distanceKm)}
                     </span>
                   }
                 />
-                {isFinite(p?.minutesToClose) && (
+                {Number.isFinite(remainingMinutes(p)) && (
                   <Typography variant="body2" color="text.secondary">
-                    {p.minutesToClose}m
+                    {remainingMinutes(p)}m
                   </Typography>
                 )}
               </ListItemButton>
@@ -151,17 +185,4 @@ export default function App() {
       </Box>
     </Box>
   );
-}
-
-function formatCloses(p) {
-  if (p?.closesAtLocal) return `Closes at ${p.closesAtLocal}`;
-  if (isFinite(p?.minutesToClose)) return `Closes in ${p.minutesToClose}m`;
-  return "Hours unknown";
-}
-
-function formatDistanceMi(km) {
-  if (!isFinite(km)) return "";
-  const mi = km * 0.621371;
-  if (mi < 1) return `${Math.round(mi * 5280)} ft`;
-  return `${mi.toFixed(1)} mi`;
 }
